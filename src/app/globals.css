@@ -24,3 +24,32 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* src/app/globals.css - Agregá al final para debug */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* BORRAR ESTA LÍNEA (debug temporal) */
+/* * { border: 1px solid red !important; } */
+
+/* src/app/globals.css - FIX INPUTS: Texto negro en fondos blancos */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* HOTFIX: Inputs legibles en fondos blancos */
+input, textarea, select {
+  @apply text-gray-900 placeholder-gray-500;
+}
+
+/* Formularios específicos de AlertaCordón */
+form input,
+form textarea,
+form select {
+  @apply bg-white text-gray-900 border-gray-300 focus:border-red-500 focus:ring-red-500;
+}
+
+/* Debug temporal - BORRAR después del deploy */
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid #ef4444 !important; /* Rojo Tailwind para debug */
+}
