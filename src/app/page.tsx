@@ -1,28 +1,55 @@
 // src/app/page.tsx
 // =================================================================
-// HOME PAGE DE ALERTACORDÓN - Form de Reportes Anónimos + Polish v1.1
+// HOME PAGE DE ALERTACORDÓN v1.2 - Form Polish + Mapa Interactivo
 // =================================================================
-// Frontend principal: Form con polish UX (categorías locales, mapa embed, autocomplete Montevideo, contador warning, preview tweet)
-// React + TypeScript + Tailwind CSS - Responsive, accesible, low-code
+// Frontend principal: Form anónimo + Categorías locales + Mapa Leaflet + Preview tweet
+// React + TypeScript + Tailwind + Leaflet - Responsive, accesible, Montevideo-ready
 // =================================================================
-// Features:
-// - Form anónimo con validación (required, max length)
-// - Categorías locales Montevideo (narcos, cuidacoches, abitab)
-// - Autocomplete ubicaciones (datalist con sugerencias Cordón)
-// - Contador chars con warning rojo >280 (Twitter ready)
-// - Preview tweet low-code UX (azul, truncado)
-// - Mapa Google embed (Cordón hot zones, zoom Paullier)
-// - Message success/ error con scroll suave
-// - Stats hardcodeados (futuro: GET /api/reports)
-// - Footer pro
+// Features v1.2:
+// - Form con validación (required, max 500 chars)
+// - 8 categorías locales (narcos, cuidacoches, abitab) con colores
+// - Autocomplete ubicaciones Cordón (datalist)// - Contador chars rojo >280 (Twitter warning)
+// - Preview tweet low-code (azul, truncado)
+// - Mapa Leaflet interactivo: Pins coloreados por categoría + popups
+// - Badge preview en select (color dinámico)
+// - Message success/error + scroll suave
 // =================================================================
-// Dependencias: lucide-react (icons), React hooks (useState)
+// Dependencias: lucide-react (icons), react-leaflet (mapa), React hooks
 // Next.js 15.5.3 App Router - Client component ("use client")
 // =================================================================
 
 "use client";
 import { useState } from 'react';
 import { MapPin, AlertTriangle, Send } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// FIX LEAFLET ICONS: Default icons no cargan en Next.js
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+// INTERFACES: TypeScript pro para categorías y reportes
+interface Category {
+  value: string;
+  label: string;
+  tailwind: string;
+  hex: string;
+  description: string;
+}
+
+interface Reporte {
+  id: number;
+  location: string;
+  category: string;
+  description: string;
+  lat: number;
+  lng: number;
+}
 
 export default function Home() {
   const [formData, setFormData] = useState({
@@ -33,62 +60,240 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // CATEGORÍAS LOCALES: Adaptadas a Montevideo/Cordón (narcos, cuidacoches, abitab)
-  const categories = [
-    { value: 'robo', label: 'Robo/Atraco' },
-    { value: 'narcos', label: 'Venta de drogas (pasta base, marihuana)' },
-    { value: 'sospechoso', label: 'Actividad sospechosa' },
-    { value: 'cuidacoches', label: 'Cuidacoches agresivos' },
-    { value: 'cajero', label: 'Problemas en cajero/banco' },
-    { value: 'abitab', label: 'Vigilancia Abitab/Brooker' },
-    { value: 'calle', label: 'Ocupación de vereda/calle' },
-    { value: 'otro', label: 'Otro (especificá)' },
+  // CATEGORÍAS LOCALES: Montevideo/Cordón con colores Tailwind + hex para pins
+  const categories: Category[] = [
+    { 
+      value: 'robo', 
+      label: 'Robo/Atraco', 
+      tailwind: 'category-robo',
+      hex: '#ef4444',  // Rojo
+      description: 'Robo con violencia, arrebato, amenaza'
+    },
+    { 
+      value: 'narcos', 
+      label: 'Venta de drogas', 
+      tailwind: 'category-narcos', 
+      hex: '#f97316',  // Naranja
+      description: 'Pasta base, marihuana, vigilancia Abitab'
+    },
+    { 
+      value: 'sospechoso', 
+      label: 'Actividad sospechosa', 
+      tailwind: 'category-sospechoso', 
+      hex: '#eab308',  // Amarillo
+      description: 'Personas merodeando, comportamiento raro'
+    },
+    { 
+      value: 'cuidacoches', 
+      label: 'Cuidacoches agresivos', 
+      tailwind: 'category-cuidacoches', 
+      hex: '#d97706',  // Ámbar
+      description: 'Amenazas, grupos organizados'
+    },
+    { 
+      value: 'cajero', 
+      label: 'Problemas en cajero/banco', 
+      tailwind: 'category-cajero', 
+      hex: '#3b82f6',  // Azul
+      description: 'Vigilancia cajeros, Redpagos'
+    },
+    { 
+      value: 'abitab', 
+      label: 'Vigilancia Abitab/Brooker', 
+      tailwind: 'category-abitab', 
+      hex: '#8b5cf6',  // Violeta
+      description: 'Personas esperando retiros/pagos'
+    },
+    { 
+      value: 'calle', 
+      label: 'Ocupación de vereda/calle', 
+      tailwind: 'category-calle', 
+      hex: '#22c55e',  // Verde
+      description: 'Bloqueo peatonal, comercio ambulante agresivo'
+    },
+    { 
+      value: 'otro', 
+      label: 'Otro (especificá)', 
+      tailwind: 'category-otro', 
+      hex: '#6b7280',  // Gris
+      description: 'Situaciones no contempladas'
+    },
   ];
 
-  // HANDLE SUBMIT: Fetch a /api/reports + message UX
+  // HELPER: Get categoría por value
+  const getCategoryColor = (categoryValue: string): Category => {
+    return categories.find(cat => cat.value === categoryValue) || categories[7]; // Default 'otro'
+  };
+
+  // HELPER: Badge component con color dinámico
+  const CategoryBadge = ({ category }: { category: string }) => {
+    const cat = getCategoryColor(category);
+    return (
+      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${cat.tailwind}`}>
+        {cat.label}
+      </span>
+    );
+  };
+
+  // HANDLE SUBMIT: POST a /api/reports + UX feedback
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
-    console.log('🔥 Enviando datos:', formData); // DEBUG frontend
+    console.log('🔥 Enviando:', formData); // DEBUG
 
     try {
-      const apiUrl = `${window.location.origin}/api/reports`; // Full URL para dev/prod
-      console.log('🎯 API URL:', apiUrl); // DEBUG
-
+      const apiUrl = `${window.location.origin}/api/reports`;
+      console.log('🎯 API:', apiUrl);
+      
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
-      console.log('📡 Response status:', response.status); // DEBUG
+      console.log('📡 Status:', response.status);
       const data = await response.json();
-      console.log('📦 Response data:', data); // DEBUG
+      console.log('📦 Data:', data);
 
       if (response.ok) {
         setMessage(data.message);
-        setFormData({ location: '', description: '', category: 'robo' }); // Reset form
-        document.getElementById('success-message')?.scrollIntoView({ behavior: 'smooth' }); // Scroll suave
+        setFormData({ location: '', description: '', category: 'robo' }); // Reset
+        // Scroll suave al mensaje
+        setTimeout(() => {
+          document.getElementById('success-message')?.scrollIntoView({ 
+            behavior: 'smooth' 
+          });
+        }, 100);
       } else {
         setMessage(data.error || `Error ${response.status}: Intentá de nuevo.`);
       }
     } catch (error) {
-      console.error('💥 Fetch error:', error); // DEBUG
+      console.error('💥 Network error:', error);
       setMessage('Sin conexión. Revisá tu internet y volvé a intentar.');
     } finally {
       setLoading(false);
     }
   };
 
+  // MAPA INTERACTIVO: Reportes hardcodeados (futuro: GET /api/reports)
+  const reportes: Reporte[] = [
+    {
+      id: 1,
+      location: 'Paullier entre Rivera y Rodó',
+      category: 'narcos',
+      description: 'Tipos en asientos rústicos vendiendo pasta base, vigilando Abitab',
+      lat: -34.9075,
+      lng: -56.1668,
+    },
+    {
+      id: 2,
+      location: '18 de Julio y Ejido',
+      category: 'sospechoso',
+      description: '2 personas vigilando cajero 24hs, comportamiento raro',
+      lat: -34.9050,
+      lng: -56.1690,
+    },
+    {
+      id: 3,
+      location: 'Bv. Artigas y Misiones',
+      category: 'robo',
+      description: 'Atraco moto a peatón - Cuidado al cruzar',
+      lat: -34.9100,
+      lng: -56.1620,
+    },
+    {
+      id: 4,
+      location: 'Tristán Narvaja y Canelones',
+      category: 'cuidacoches',
+      description: 'Cuidacoches agresivos amenazando peatones',
+      lat: -34.9045,
+      lng: -56.1645,
+    },
+  ];
+
+  // COMPONENTE MAPA: Leaflet con pins coloreados
+  const MapaInteractivo = () => {
+    const center = [-34.9075, -56.1668]; // Cordón centro
+
+    return (
+      <div className="max-w-4xl mx-auto px-4 mb-8">
+        <h2 className="text-xl font-semibold mb-4 text-center text-gray-800">
+          📍 Hot Zones en Cordón - {reportes.length} Reportes Activos
+        </h2>
+        <div className="relative h-96 rounded-xl overflow-hidden shadow-lg">
+          <MapContainer 
+            center={center} 
+            zoom={15} 
+            style={{ height: '100%', width: '100%' }}
+            className="rounded-xl"
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
+            
+            {/* PINS COLOREADOS POR CATEGORÍA */}
+            {reportes.map((reporte) => {
+              const color = getCategoryColor(reporte.category);
+              const icon = L.divIcon({
+                className: 'custom-pin',
+                html: `
+                  <div class="w-8 h-8 rounded-full shadow-lg border-2 border-white flex items-center justify-center text-white text-xs font-bold" 
+                       style="background-color: ${color.hex};">
+                    ${reporte.id}
+                  </div>
+                `,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+              });
+
+              return (
+                <Marker 
+                  key={reporte.id} 
+                  position={[reporte.lat, reporte.lng]} 
+                  icon={icon}
+                >
+                  <Popup>
+                    <div className="min-w-72">
+                      <h3 className="font-semibold text-gray-900 mb-2 text-lg">{reporte.location}</h3>
+                      <div className="mb-3">
+                        <CategoryBadge category={reporte.category} />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3 leading-relaxed">
+                        {reporte.description}
+                      </p>
+                      <div className="flex justify-between items-center text-xs text-gray-500">
+                        <span>Reporte #{reporte.id}</span>
+                        <span className="text-gray-400">Click para reportar similar</span>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+          </MapContainer>
+        </div>
+        <div className="text-center mt-2">
+          <p className="text-sm text-gray-600">
+            🔴 Narcos | 🟠 Robo | 🟡 Sospechoso | Click pins para detalles
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            * Datos simulados - Próximamente reportes reales de la comunidad
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
-      {/* Header Hero */}
+      {/* HEADER HERO */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="text-center">
-            <AlertTriangle className="mx-auto h-16 w-16 text-red-500 mb-4" />
+            <AlertTriangle className="mx-auto h-16 w-16 text-red-500 mb-4 animate-pulse" />
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               🛡️ AlertaCordón
             </h1>
@@ -96,13 +301,13 @@ export default function Home() {
               Reportá anónimamente lo que ves en el barrio. Juntos mantenemos los ojos abiertos.
             </p>
             <p className="text-sm text-gray-500 mt-2">
-              Inspirado en un atraco real - Paullier entre Rivera y Rodó
+              Inspirado en un atraco real - Paullier entre Rivera y Rodó (19/09/25)
             </p>
           </div>
         </div>
       </header>
 
-      {/* Form Principal */}
+      {/* FORM PRINCIPAL */}
       <main className="max-w-2xl mx-auto px-4 py-8">
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-8 mb-8">
           <h2 className="text-xl font-semibold mb-6 text-center text-gray-800">
@@ -110,7 +315,7 @@ export default function Home() {
           </h2>
           
           <div className="space-y-4">
-            {/* INPUT UBICACIÓN: Con datalist autocomplete Montevideo */}
+            {/* INPUT UBICACIÓN: Autocomplete Montevideo */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                 <MapPin className="h-4 w-4 mr-2 text-red-500" />
@@ -118,14 +323,14 @@ export default function Home() {
               </label>
               <input
                 type="text"
-                placeholder="Ej: Paullier entre Rivera y Rodó, 18 de Julio y Ejido, Cordón Centro"
+                placeholder="Ej: Paullier entre Rivera y Rodó, 18 de Julio y Ejido"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white text-gray-900"
-                list="location-suggestions" // Datalist para autocomplete
+                list="location-suggestions"
                 required
               />
-              {/* SUGERENCIAS LOCALES: Datalist para UX Montevideo */}
+              {/* AUTOCOMPLETE SUGERENCIAS */}
               <datalist id="location-suggestions">
                 <option value="Paullier entre Rivera y Rodó" />
                 <option value="18 de Julio y Ejido" />
@@ -134,19 +339,20 @@ export default function Home() {
                 <option value="Abitab Rivera y Paullier" />
                 <option value="Almacén Carlos - Paullier y Rodó" />
                 <option value="Cordón Centro" />
+                <option value="Constituyente y Campero" />
               </datalist>
               <p className="text-xs text-gray-500 mt-1">
                 💡 Sugerencias: Paullier/Rivera, 18 de Julio/Ejido, Cordón Centro
               </p>
             </div>
 
-            {/* TEXTAREA DESCRIPCIÓN: Con contador mejorado */}
+            {/* TEXTAREA DESCRIPCIÓN: Contador + Preview */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 ¿Qué pasó?
               </label>
               <textarea
-                placeholder="Describí lo que viste (máx 500 caracteres para X)"
+                placeholder="Describí lo que viste (máx 500 caracteres - 280 para Twitter)"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={4}
@@ -154,7 +360,7 @@ export default function Home() {
                 maxLength={500}
                 required
               />
-              {/* CONTADOR MEJORADO: Rojo si >280 (Twitter warning) */}
+              {/* CONTADOR MEJORADO */}
               <p className={`text-sm mt-1 ${
                 formData.description.length > 280 ? 'text-red-600 font-semibold' : 'text-gray-500'
               }`}>
@@ -163,29 +369,40 @@ export default function Home() {
               </p>
             </div>
 
-            {/* SELECT CATEGORÍA: Locales Montevideo */}
+            {/* SELECT CATEGORÍA: Con badge preview */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Categoría
               </label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 bg-white text-gray-900"
-              >
-                {categories.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 bg-white text-gray-900 appearance-none pr-12"
+                  required
+                >
+                  {categories.map((cat) => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+                {/* BADGE PREVIEW: Color dinámico */}
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <CategoryBadge category={formData.category} />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                💎 El color aparece en el mapa y alertas
+              </p>
             </div>
           </div>
 
+          {/* BOTÓN SUBMIT */}
           <button
             type="submit"
-            disabled={loading}
-            className="w-full mt-6 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors"
+            disabled={loading || !formData.location || !formData.description}
+            className="w-full mt-6 bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
           >
             {loading ? (
               <>
@@ -201,7 +418,7 @@ export default function Home() {
           </button>
         </form>
 
-        {/* MENSAJE SUCCESS/ERROR: Con scroll suave */}
+        {/* MESSAGE SUCCESS/ERROR */}
         {message && (
           <div 
             id="success-message"
@@ -213,41 +430,47 @@ export default function Home() {
           </div>
         )}
 
-        {/* STATS PLACEHOLDER: Hardcodeado (futuro: GET /api/reports) */}
+        {/* PREVIEW TWEET: Low-code UX */}
+        {formData.description.length > 0 && (
+          <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs text-blue-800 font-semibold mb-2">📱 Preview para X (Twitter):</p>
+            <div className="bg-white p-3 rounded border">
+              <p className="text-sm text-blue-900">
+                🚨 ALERTA CORDÓN: <strong>{formData.location}</strong> -{' '}
+                <CategoryBadge category={formData.category} />
+                <br />
+                <span className="text-gray-600">
+                  {formData.description.substring(0, 100)}
+                  {formData.description.length > 100 && '...'}
+                </span>
+              </p>
+            </div>
+            <p className={`text-xs mt-2 ${
+              formData.description.length > 280 ? 'text-red-600' : 'text-blue-600'
+            }`}>
+              {formData.description.length > 280 ? '✂️ Acortar para Twitter (280 máx)' : '✅ Listo para publicar'}
+            </p>
+          </div>
+        )}
+
+        {/* STATS */}
         <div className="text-center text-gray-500 text-sm mb-8">
           <p>Ya hay <span className="font-semibold text-red-600">6</span> reportes activos en Cordón esta semana</p>
         </div>
-
-        {/* MAPA EMBED: Hot zones Cordón (zoom Paullier) */}
-        <div className="max-w-4xl mx-auto px-4 mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-center text-gray-800">
-            📍 Hot Zones en Cordón - Reportes Activos
-          </h2>
-          <div className="relative h-96 rounded-xl overflow-hidden shadow-lg">
-            <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3766.5!2d-56.166!3d-34.907!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x95a2e8b4%3A0x4b4b4b4b4b4b4b4b!2sPaullier%20y%20Rivera!5e0!3m2!1ses!2suy!4v1695370000000"
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              allowFullScreen=""
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              title="Mapa Cordón - Hot Zones"
-              className="w-full h-full"
-            />
-          </div>
-          <p className="text-sm text-gray-600 text-center mt-2">
-            🔴 Rojo: Paullier/Rivera (narcos fijos) | 🟡 Amarillo: 18 de Julio/Ejido (sospechoso)
-          </p>
-        </div>
       </main>
 
-      {/* Footer */}
+      {/* MAPA INTERACTIVO */}
+      <MapaInteractivo />
+
+      {/* FOOTER */}
       <footer className="bg-gray-800 text-white py-8">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <p className="mb-2">Creado por vecinos, para vecinos. Anónimo = Seguro.</p>
           <p className="text-sm text-gray-400">
             Basado en hechos reales • No compartimos datos • Solo hechos
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
+            © 2025 AlertaCordón - Montevideo, Uruguay
           </p>
         </div>
       </footer>
