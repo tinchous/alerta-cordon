@@ -7,7 +7,9 @@
 // =================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { geocodeLocation } from '@/utils/geocoding';
+import { postAlertToX } from '@/utils/xClient';
 
 // PRISMA SIMPLE: Directo, sin singleton (funciona perfecto)
 const prisma = new PrismaClient();
@@ -29,12 +31,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const coordinates = geocodeLocation(location);
+
     // Guardar reporte anónimo
     const report = await prisma.report.create({
       data: {
         location,
         description,
         category: category || 'general',
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
         isAnonymous: true,
       },
     });
@@ -42,25 +48,25 @@ export async function POST(request: NextRequest) {
     console.log('🚨 Nuevo reporte #', report.id, 'en', location);
     console.log('Descripción:', description);
 
-    return NextResponse.json({ 
-      success: true, 
+    await postAlertToX({
+      id: report.id,
+      location: report.location,
+      description: report.description,
+      category: report.category,
+    });
+
+    return NextResponse.json({
+      success: true,
       message: `🚨 Alerta enviada! Reporte #${report.id} registrado. Los vecinos están más seguros gracias a vos.`,
-      reportId: report.id 
+      report,
     }, { status: 201 });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('💥 Error creando reporte:', error);
-    
-    // TYPE GUARD SIMPLE: Fix para Vercel build (error.code safe)
-    // Chequeamos si error tiene .code ANTES de usarlo
-    let errorCode = 'UNKNOWN';
-    if (error && typeof error === 'object' && 'code' in error) {
-      errorCode = (error as any).code;
-    }
-    
-    if (errorCode === 'P2002') {
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return NextResponse.json(
-        { error: 'Error de base de datos. Intentá de nuevo.' }, 
+        { error: 'Error de base de datos. Intentá de nuevo.' },
         { status: 500 }
       );
     }
@@ -80,12 +86,14 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   try {
     const reports = await prisma.report.findMany({
-      select: { 
-        id: true, 
-        location: true, 
-        description: true, 
-        category: true, 
-        createdAt: true 
+      select: {
+        id: true,
+        location: true,
+        description: true,
+        category: true,
+        latitude: true,
+        longitude: true,
+        createdAt: true
       },
       orderBy: { createdAt: 'desc' },
       take: 10,

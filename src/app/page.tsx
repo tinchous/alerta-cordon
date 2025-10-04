@@ -19,14 +19,17 @@
 // =================================================================
 
 "use client";
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin, AlertTriangle, Send } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
 // FIX LEAFLET ICONS: Default icons no cargan en Next.js
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+const defaultIconPrototype = L.Icon.Default.prototype as unknown as {
+  _getIconUrl?: () => string;
+};
+delete defaultIconPrototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
@@ -51,6 +54,84 @@ interface Reporte {
   lng: number;
 }
 
+interface ApiReport {
+  id: number;
+  location: string;
+  category: string;
+  description: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  lat?: number | null;
+  lng?: number | null;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null;
+};
+
+const isApiReport = (value: unknown): value is ApiReport => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'number' &&
+    typeof value.location === 'string' &&
+    typeof value.description === 'string' &&
+    typeof value.category === 'string'
+  );
+};
+
+const isPostReportSuccess = (
+  value: unknown,
+): value is { success: true; message: string; report: ApiReport } => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value.success !== true || typeof value.message !== 'string') {
+    return false;
+  }
+
+  if (!('report' in value) || !isApiReport((value as { report?: unknown }).report)) {
+    return false;
+  }
+
+  return true;
+};
+
+const isErrorResponse = (value: unknown): value is { error: string } => {
+  return isRecord(value) && 'error' in value && typeof value.error === 'string';
+};
+
+const toReporte = (report: ApiReport): Reporte | null => {
+  const latitude =
+    typeof report.latitude === 'number'
+      ? report.latitude
+      : typeof report.lat === 'number'
+        ? report.lat
+        : null;
+  const longitude =
+    typeof report.longitude === 'number'
+      ? report.longitude
+      : typeof report.lng === 'number'
+        ? report.lng
+        : null;
+
+  if (latitude === null || longitude === null) {
+    return null;
+  }
+
+  return {
+    id: report.id,
+    location: report.location,
+    category: report.category,
+    description: report.description,
+    lat: latitude,
+    lng: longitude,
+  };
+};
+
 export default function Home() {
   const [formData, setFormData] = useState({
     location: '',
@@ -59,6 +140,7 @@ export default function Home() {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [reportes, setReportes] = useState<Reporte[]>([]);
 
   // CATEGORÍAS LOCALES: Montevideo/Cordón con colores Tailwind + hex para pins
   const categories: Category[] = [
@@ -154,20 +236,39 @@ export default function Home() {
       });
 
       console.log('📡 Status:', response.status);
-      const data = await response.json();
+      const data: unknown = await response.json();
       console.log('📦 Data:', data);
 
       if (response.ok) {
-        setMessage(data.message);
-        setFormData({ location: '', description: '', category: 'robo' }); // Reset
+        if (isPostReportSuccess(data)) {
+          setMessage(data.message);
+          setFormData({ location: '', description: '', category: 'robo' }); // Reset
+          const nuevoReporte = toReporte(data.report);
+          if (nuevoReporte) {
+            setReportes((prev) => {
+              const exists = prev.find((item) => item.id === nuevoReporte.id);
+              if (exists) {
+                return prev;
+              }
+
+              return [nuevoReporte, ...prev];
+            });
+          }
+        } else {
+          setMessage('🚨 Alerta registrada.');
+        }
         // Scroll suave al mensaje
         setTimeout(() => {
-          document.getElementById('success-message')?.scrollIntoView({ 
-            behavior: 'smooth' 
+          document.getElementById('success-message')?.scrollIntoView({
+            behavior: 'smooth'
           });
         }, 100);
       } else {
-        setMessage(data.error || `Error ${response.status}: Intentá de nuevo.`);
+        if (isErrorResponse(data)) {
+          setMessage(data.error);
+        } else {
+          setMessage(`Error ${response.status}: Intentá de nuevo.`);
+        }
       }
     } catch (error) {
       console.error('💥 Network error:', error);
@@ -177,45 +278,38 @@ export default function Home() {
     }
   };
 
-  // MAPA INTERACTIVO: Reportes hardcodeados (futuro: GET /api/reports)
-  const reportes: Reporte[] = [
-    {
-      id: 1,
-      location: 'Paullier entre Rivera y Rodó',
-      category: 'narcos',
-      description: 'Tipos en asientos rústicos vendiendo pasta base, vigilando Abitab',
-      lat: -34.9075,
-      lng: -56.1668,
-    },
-    {
-      id: 2,
-      location: '18 de Julio y Ejido',
-      category: 'sospechoso',
-      description: '2 personas vigilando cajero 24hs, comportamiento raro',
-      lat: -34.9050,
-      lng: -56.1690,
-    },
-    {
-      id: 3,
-      location: 'Bv. Artigas y Misiones',
-      category: 'robo',
-      description: 'Atraco moto a peatón - Cuidado al cruzar',
-      lat: -34.9100,
-      lng: -56.1620,
-    },
-    {
-      id: 4,
-      location: 'Tristán Narvaja y Canelones',
-      category: 'cuidacoches',
-      description: 'Cuidacoches agresivos amenazando peatones',
-      lat: -34.9045,
-      lng: -56.1645,
-    },
-  ];
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        const response = await fetch('/api/reports');
+        if (!response.ok) {
+          console.error('No se pudieron obtener los reportes');
+          return;
+        }
+
+        const data: unknown = await response.json();
+        if (!Array.isArray(data)) {
+          return;
+        }
+
+        const parsed = data
+          .map((item) => (isApiReport(item) ? toReporte(item) : null))
+          .filter((item): item is Reporte => item !== null);
+
+        setReportes(parsed);
+      } catch (error) {
+        console.error('Error cargando reportes', error);
+      }
+    };
+
+    fetchReports();
+  }, []);
 
   // COMPONENTE MAPA: Leaflet con pins coloreados
   const MapaInteractivo = () => {
-    const center = [-34.9075, -56.1668]; // Cordón centro
+    const center = reportes.length > 0
+      ? [reportes[0].lat, reportes[0].lng]
+      : [-34.9075, -56.1668]; // Cordón centro
 
     return (
       <div className="max-w-4xl mx-auto px-4 mb-8">
@@ -250,9 +344,9 @@ export default function Home() {
               });
 
               return (
-                <Marker 
-                  key={reporte.id} 
-                  position={[reporte.lat, reporte.lng]} 
+                <Marker
+                  key={reporte.id}
+                  position={[reporte.lat, reporte.lng]}
                   icon={icon}
                 >
                   <Popup>
@@ -280,7 +374,7 @@ export default function Home() {
             🔴 Narcos | 🟠 Robo | 🟡 Sospechoso | Click pins para detalles
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            * Datos simulados - Próximamente reportes reales de la comunidad
+            * Datos en vivo aportados por la comunidad de Cordón
           </p>
         </div>
       </div>
@@ -455,7 +549,10 @@ export default function Home() {
 
         {/* STATS */}
         <div className="text-center text-gray-500 text-sm mb-8">
-          <p>Ya hay <span className="font-semibold text-red-600">6</span> reportes activos en Cordón esta semana</p>
+          <p>
+            Ya hay <span className="font-semibold text-red-600">{reportes.length}</span>{' '}
+            reportes activos en Cordón esta semana
+          </p>
         </div>
       </main>
 

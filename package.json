@@ -20,7 +20,8 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-leaflet": "^5.0.0",
-    "resend": "^6.1.0"
+    "resend": "^6.1.0",
+    "twitter-api-v2": "^1.27.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
