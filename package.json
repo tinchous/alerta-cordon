@@ -1,0 +1,15 @@
+{
+  "name": "alertacordon",
+  "version": "1.0.0",
+  "description": "Alerta Cordón - Reportes anónimos del barrio Cordón (Montevideo)",
+  "main": "public/index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "vercel dev",
+    "db:sync": "npx prisma generate && npx prisma db push"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "prisma": "^6.19.0"
+  }
+}

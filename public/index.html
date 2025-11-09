@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🛡️ Alerta Cordón</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+  <h1>🛡️ Alerta Cordón</h1>
+  <form id="form">
+    <input type="text" id="location" placeholder="Calle o dirección" required />
+    <textarea id="description" placeholder="Descripción" required></textarea>
+    <select id="category">
+      <option value="robo">Robo</option>
+      <option value="narcos">Venta de drogas</option>
+      <option value="sospechoso">Sospechoso</option>
+      <option value="vandalismo">Vandalismo</option>
+      <option value="otros">Otros</option>
+    </select>
+    <button type="submit">Enviar</button>
+  </form>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
