@@ -8,21 +8,34 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 </head>
 <body>
-  <h1>🛡️ Alerta Cordón</h1>
-  <form id="form">
-    <input type="text" id="location" placeholder="Calle o dirección" required />
-    <textarea id="description" placeholder="Descripción" required></textarea>
-    <select id="category">
-      <option value="robo">Robo</option>
-      <option value="narcos">Venta de drogas</option>
-      <option value="sospechoso">Sospechoso</option>
-      <option value="vandalismo">Vandalismo</option>
-      <option value="otros">Otros</option>
-    </select>
-    <button type="submit">Enviar</button>
-  </form>
+  <header>
+    <h1>🛡️ Alerta Cordón</h1>
+    <p>Denunciá anónimamente hechos delictivos en tu barrio</p>
+  </header>
 
-  <div id="map"></div>
+  <main>
+    <section class="form-section">
+      <form id="form">
+        <input type="text" id="location" placeholder="📍 Calle o esquina" required />
+        <textarea id="description" placeholder="📝 Describí lo que pasó" required></textarea>
+        <select id="category">
+          <option value="robo">🚨 Robo</option>
+          <option value="narcos">💊 Venta de drogas</option>
+          <option value="sospechoso">🕵️ Sospechoso</option>
+          <option value="vandalismo">🔥 Vandalismo</option>
+          <option value="otros">❓ Otros</option>
+        </select>
+        <button type="submit">Enviar denuncia</button>
+      </form>
+      <p id="msg"></p>
+    </section>
+
+    <section id="map"></section>
+  </main>
+
+  <footer>
+    <p>Proyecto comunitario sin fines de lucro. Barrio Cordón, Montevideo.</p>
+  </footer>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="app.js"></script>
