@@ -1,50 +1,71 @@
 const form = document.getElementById("form");
-const map = L.map("map").setView([-34.906, -56.186], 15);
+const msg = document.getElementById("msg");
 
+// Inicializar mapa
+const map = L.map("map").setView([-34.906, -56.186], 15);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
 }).addTo(map);
 
+// Función de color por categoría
+function color(cat) {
+  switch (cat) {
+    case "robo":
+      return "red";
+    case "narcos":
+      return "purple";
+    case "vandalismo":
+      return "orange";
+    case "sospechoso":
+      return "yellow";
+    default:
+      return "blue";
+  }
+}
+
+// Cargar denuncias
 async function loadReports() {
   const res = await fetch("/api/reports");
-  const reports = await res.json();
-  reports.forEach((r) => {
-    const color =
-      r.category === "robo"
-        ? "red"
-        : r.category === "narcos"
-        ? "purple"
-        : r.category === "vandalismo"
-        ? "orange"
-        : r.category === "sospechoso"
-        ? "yellow"
-        : "blue";
+  const data = await res.json();
 
+  data.forEach((r) => {
     const icon = L.divIcon({
-      html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid white;"></div>`,
+      html: `<div style="background:${color(r.category)};width:18px;height:18px;border-radius:50%;border:2px solid white;box-shadow:0 0 3px #0003;"></div>`,
       className: "",
-      iconSize: [14, 14],
+      iconSize: [18, 18],
     });
-    L.marker([r.latitude, r.longitude], { icon })
-      .addTo(map)
-      .bindPopup(`<b>${r.category}</b><br>${r.location}<br>${r.description}`);
+
+    const marker = L.marker([r.latitude, r.longitude], { icon }).addTo(map);
+    marker.bindPopup(`<strong>${r.category.toUpperCase()}</strong><br>${r.location}<br>${r.description}`);
   });
 }
 
+// Enviar nueva denuncia
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
+  msg.textContent = "⏳ Enviando...";
   const data = {
     location: form.location.value,
     description: form.description.value,
     category: form.category.value,
   };
-  await fetch("/api/reports", {
+
+  const res = await fetch("/api/reports", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  form.reset();
-  loadReports();
+
+  if (res.ok) {
+    msg.textContent = "✅ Denuncia registrada";
+    form.reset();
+    map.eachLayer((layer) => {
+      if (layer instanceof L.Marker) map.removeLayer(layer);
+    });
+    loadReports();
+  } else {
+    msg.textContent = "⚠️ Error al enviar denuncia.";
+  }
 });
 
 loadReports();
