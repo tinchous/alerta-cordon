@@ -9,7 +9,12 @@
     "db:sync": "npx prisma generate && npx prisma db push"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.0",
-    "prisma": "^6.19.0"
-  }
+  "next": "15.5.9",
+  "react": "19.1.0",
+  "react-dom": "19.1.0"
+},
+"devDependencies": {
+  "eslint-config-next": "15.5.9"
+}
+
 }
